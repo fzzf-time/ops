@@ -1,0 +1,52 @@
+sources:
+  kafka-prod:
+    type: kafka
+    auto_offset_reset: earliest
+    bootstrap_servers: alikafka-post-public-intl-sg-4hr2ybawh02-1-vpc.alikafka.aliyuncs.com:9092
+    topics:
+      - istio_access_log.prod
+    group_id: k2ch-k8s_istio_log
+    decoding:
+      codec: json
+transforms:
+  filtering:
+    type: filter
+    inputs:
+      - kafka-prod
+    condition: "exists(.data.path)"
+  remapping:
+    type: remap
+    inputs:
+      - filtering
+    drop_on_error: true
+    reroute_dropped: true
+    source: |-
+      . = .data
+      .ts = parse_timestamp!(._time_, "%+")
+      .host = del(.__hostname__)
+      .upstream_addr = del(.upstream_local_address)
+      .downstream_addr = del(.downstream_remote_address)
+      .pod_name = del(._pod_name_)
+      .namespace = del(._namespace_)
+      .bytes_sent = parse_int!(.bytes_sent)
+      .bytes_received = parse_int!(.bytes_received)
+      .status = parse_int!(.response_code)
+      .start_ts = parse_timestamp!(.start_time, "%FT%X%.fZ")
+      .request_time = to_int((to_float(.ts) - to_float(.start_ts)) * 1000)
+
+sinks:
+  devops-ch:
+    type: clickhouse
+    inputs:
+      - remapping
+    endpoint: "http://10.0.1.112:8123"
+    database: ops
+    table: k8s_app_access_log
+    skip_unknown_fields: true
+    date_time_best_effort: true
+  stdout:
+    type: console
+    inputs:
+      - '*.dropped'
+    encoding:
+      codec: json

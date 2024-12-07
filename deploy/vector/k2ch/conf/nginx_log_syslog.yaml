@@ -1,0 +1,62 @@
+sources:
+  kafka-test:
+    type: kafka
+    auto_offset_reset: latest
+    bootstrap_servers: alikafka-post-public-intl-sg-4hr2ybawh02-1-vpc.alikafka.aliyuncs.com:9092
+    topics:
+      - nginx_log.syslog
+    group_id: k2ch-nginx_log_syslog
+    decoding:
+      codec: json
+transforms:
+  remapping:
+    type: remap
+    inputs:
+      - kafka-test
+    drop_on_error: true
+    reroute_dropped: true
+    source: |-
+      . = parse_json!(.message)
+      .ts = parse_timestamp!(.time, "%+")
+      .path = .request_url_path
+      .user_agent = slice!(del(.http_user_agent), 0, 100)
+      .bytes_sent = parse_int!(.bytes_sent)
+      .client_ip = "0.0.0.0"
+      if .x_forward_for != "" && .x_forward_for != "-" {
+        .client_ip = del(.x_forward_for)
+      } else if .remote_addr != "" {
+        .client_ip = del(.remote_addr)
+      }
+      .request_time = parse_float!(.request_time)
+      .request_length = parse_int!(.request_length)
+      .referer = del(.http_referer)
+      .status = parse_int!(.status)
+      .upstream_name = del(.upstream_host)
+      .upstream_status, err = parse_int(.upstream_status)
+      if err != null {
+        .upstream_status = -1
+      }
+      .upstream_response_time, err = parse_float(.upstream_response_time)
+      if err != null {
+        .upstream_response_time = -1
+      }
+      .upstream_response_length, err = parse_int(.upstream_response_length)
+      if err != null {
+        .upstream_response_length = -1
+      }
+sinks:
+  devops-ch:
+    type: clickhouse
+    inputs:
+      - remapping
+    endpoint: "http://10.0.1.112:8123"
+    database: ops
+    table: nginx_log
+    skip_unknown_fields: true
+    date_time_best_effort: true
+  stdout:
+    type: console
+    inputs:
+      - '*.dropped'
+    encoding:
+      codec: json

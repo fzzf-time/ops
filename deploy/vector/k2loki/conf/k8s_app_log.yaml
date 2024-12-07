@@ -1,0 +1,59 @@
+sources:
+  kafka-prod:
+    type: kafka
+    auto_offset_reset: latest
+    bootstrap_servers: alikafka-post-public-intl-sg-4hr2ybawh02-1-vpc.alikafka.aliyuncs.com:9092
+    topics:
+      - k8s-app-log.prod
+    group_id: k2loki-k8s_app_log
+    decoding:
+      codec: json
+transforms:
+  remapping:
+    type: remap
+    inputs:
+      - kafka-prod
+    drop_on_error: true
+    reroute_dropped: true
+    source: |-
+      . = .data
+      del(.__hostname__)
+      del(.__pack_id__)
+      del(.__topic__)
+      del(.__source__)
+      del(._cluster_id_)
+      del(._container_ip_)
+      del(.eci_id)
+      del(._node_ip_)
+      del(._node_name_)
+      del(._pod_uid_)
+      .container = del(._container_name_)
+      .image = del(._image_name_)
+      .namespace = del(._namespace_)
+      .pod_name = del(._pod_name_)
+      .stream = del(._source_)
+      .message = del(.content)
+      .timestamp = del(._time_)
+sinks:
+  stdout:
+    type: console
+    inputs:
+      - '*.dropped'
+    encoding:
+      codec: json
+  alihk-prod-loki:
+    type: loki
+    inputs:
+      - remapping
+    endpoint: http://loki.prod.alihk:3100
+    encoding:
+      codec: raw_message
+    remove_label_fields: true
+    labels:
+      app: "{{app}}"
+      container: "{{container}}"
+      namespace: "{{namespace}}"
+      image: "{{image}}"
+      pod: "{{pod_name}}"
+      stream: "{{stream}}"
+      job: vector

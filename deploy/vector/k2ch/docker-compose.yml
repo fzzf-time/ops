@@ -1,0 +1,28 @@
+version: '3.8'
+
+x-base-config: &base_config
+  image: timberio/vector:0.42.X-debian
+  restart: always
+  deploy:
+    resources:
+      limits:
+        cpus: '1.0'
+        memory: 512M
+  command:
+    - '-t'
+    - '1'
+
+
+services:
+  k8s_istio_log:
+    <<: *base_config
+    volumes:
+      - ${PWD}/conf/k8s_istio_log.yaml:/etc/vector/vector.yaml
+  nginx_log:
+    <<: *base_config
+    volumes:
+      - ${PWD}/conf/nginx_log.yaml:/etc/vector/vector.yaml
+  nginx_log_syslog:
+    <<: *base_config
+    volumes:
+      - ${PWD}/conf/nginx_log_syslog.yaml:/etc/vector/vector.yaml

@@ -1,0 +1,17 @@
+filebeat.inputs:
+- type: log
+  enabled: true
+  paths:
+    - /var/log/nginx/*.log
+
+
+output.kafka:
+  enabled: true
+  hosts: ["alikafka-post-public-intl-sg-4hr2ybawh02-1-vpc.alikafka.aliyuncs.com:9092","alikafka-post-public-intl-sg-4hr2ybawh02-2-vpc.alikafka.aliyuncs.com:9092","alikafka-post-public-intl-sg-4hr2ybawh02-3-vpc.alikafka.aliyuncs.com:9092"]
+  topic: 'nginx_log.syslog'
+  partition.round_robin:
+    reachable_only: false
+  required_acks: 1
+  compression: gzip
+  codec.format:
+    string: '%{[message]}'
